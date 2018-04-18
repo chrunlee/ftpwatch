@@ -1,0 +1,24 @@
+{
+  "name": "ftpwatch",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node ./bin/www"
+  },
+  "dependencies": {
+    "art-template": "^4.12.2",
+    "async": "^2.6.0",
+    "body-parser": "~1.16.0",
+    "chokidar": "^2.0.2",
+    "cookie-parser": "~1.4.3",
+    "debug": "~2.6.0",
+    "express": "~4.14.1",
+    "express-art-template": "^1.0.0",
+    "formidable": "^1.2.1",
+    "get-image-data": "^3.0.1",
+    "jade": "~1.11.0",
+    "morgan": "~1.7.0",
+    "serve-favicon": "~2.3.2",
+    "superagent": "^3.8.2"
+  }
+}
