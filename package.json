@@ -19,6 +19,7 @@
     "jade": "~1.11.0",
     "morgan": "~1.7.0",
     "serve-favicon": "~2.3.2",
+    "should": "^13.2.1",
     "superagent": "^3.8.2"
   }
 }

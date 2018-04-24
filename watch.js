@@ -12,27 +12,16 @@ var watcherIns = null;
 watcherIns = chokidar.watch(config.ftp,{
 	persistent : true
 });
-//
 
-function loopExe (){
-	var fileName = Util.getError();
-	if(fileName){
-		Util.log('处理错误信息:['+fileName+']');
-		exeFileOpt(fileName);
+function exeFileOpt (){
+	var obj = Util.getQueue();
+	if(obj === 0 || obj === -1){
+		if(obj === 0){
+			Util.getCode();
+		}
+		return;//没有新的
 	}
-
-	setTimeout(function(){
-		loopExe();	
-	},10000);//每5s执行一次,超过三次放弃
-}
-loopExe();//执行
-
-function exeFileOpt ( newName,filePath ){
-	if(filePath){
-		var createTime= Util.getBirthTime(filePath);
-		Util.log('['+newName+']获得文件创建时间:'+createTime);
-		Util.cache[newName].time = createTime;
-	}
+	var newName = obj.guid,filePath = obj.filePath;
 	
 	//3.对图片进行分割：4部分，r/b/l/t--右上角、右下角、左下角、左上角；
 	async.waterfall([
@@ -61,8 +50,9 @@ function exeFileOpt ( newName,filePath ){
 		}else{
 			Util.log('['+newName+']执行完毕');
 			Util.addSuccess();
-			Util.deleteError(newName);
+			Util.delete(newName);
 		}
+		exeFileOpt();
 	});
 }
 
@@ -71,7 +61,13 @@ watcherIns.on('add',function(filePath){
 	Util.log('监测到有文件添加进入,文件路径为:'+filePath);
 	var newName = Util.guid(filePath);//获得名称
 	Util.log('随机获得文件的新名字:'+newName)
-	exeFileOpt(newName,filePath);
+	var createTime= Util.getBirthTime(filePath);
+	Util.log('['+newName+']获得文件创建时间:'+createTime);
+	Util.cache[newName].time = createTime;
+	var fileTime = Util.getFileTime(filePath);
+	Util.cache[newName].fileTime = fileTime;
+	Util.pushQueue(newName);
+	exeFileOpt();
 	
 });
 

@@ -40,12 +40,15 @@ router.post('/upload',function(req,res,next){
       var form = formidable.IncomingForm();
       form.uploadDir = 'tmp';
       form.parse(req,function(err,fileds,files){
-        var str = '获得字段:'+JSON.stringify(fileds);
-        str += 'file ='+files.file.name+';thumb='+files.thumb.name;
+        // var str = '获得字段:'+JSON.stringify(fileds);
+        // str += 'file ='+files.file.name+';thumb='+files.thumb.name;
         //将文件复制到根目录下的 attachment
-        res.end(str);
+        res.end('{"filePath":"aa","thumb":"b"}');
       });
     }
+})
+router.post('/data',function(req,res,next){
+  res.end('suc');
 })
 
 

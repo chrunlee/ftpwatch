@@ -16,4 +16,5 @@ data.json
 analysis.json
 
 node_modules
+test
 npm-debug.log
