@@ -232,6 +232,7 @@ Util.thumb = function( fileName ,callback){
 		if(err){
 			Util.log(err.toString());
 		}
+		Util.log('['+fileName+']缩略图创建成功,'+newPath);
 		info.thumb = newPath;
 		Util.cache[fileName] = info;
 		callback(null,fileName);
@@ -317,7 +318,7 @@ Util.readCode2 = function(fileName,filePath,pos,cb){
 	};
 	//读取图片是否有二维码
 	var buffer = fs.readFileSync(filePath);
-	// fs.unlinkSync(filePath);
+	fs.unlinkSync(filePath);
 	Jimp.read(buffer).then(function(blockimg){
 		var qr = new QrCode();
 	    qr.callback = function(err2, value) {
@@ -363,17 +364,18 @@ Util.crop = function(fileName,filePath,targetPath,width,height,x,y,pos,callback)
 	})
 };
 Util.encodeStr = function(str){
+	str = typeof str == 'string' ? str : (str ? str.toString() : '');
 	return (new Buffer(str)).toString('base64');
 }
 Util.decodeStr = function(str){
 	return (new Buffer(str,'base64')).toString();
 }
-Util.encodeFileSync = function(filePath){//直接将源文件进行加密
+Util.encodeFileSync = function(filePath,targetPath){//直接将源文件进行加密
 	var buffer = fs.readFileSync(filePath);
 	buffer.forEach(function(item,index){
 		buffer[index] = item ^ 0XBB;
 	});
-	fs.writeFileSync(filePath,buffer);
+	fs.writeFileSync(targetPath,buffer);
 	delete buffer;
 }
 Util.encodeFile = function(filePath,target,cb){
@@ -383,14 +385,21 @@ Util.encodeFile = function(filePath,target,cb){
 		for(var i=0,max=chunk.length;i<max;i++){
 			chunk[i] = chunk[i] ^ 0XBB;
 		}
-		os.write(chunk);
-	})
+		if(os.write(chunk)){
+			rs.pause();
+		}
+	});
+	os.on('drain',function(){
+		rs.resume();
+	});
 	rs.on('end',function(){
+		os.end();
+		os.close();
 		cb(null);
 	});
 	rs.on('error',function(err){
 		cb(err,null);
-	})
+	});
 }
 //获得旋转度数
 Util.getDegree = function( arr ){
@@ -469,64 +478,81 @@ Util.send = function(fileName,callback){
 	 	num ++;
 	 }
 	 Util.addCode(num);
-	 Util.encodeFile(path.join(config.target,info.newPath),path.join(config.target,encFilePath),function(err,value){
-	 	if(err){
-	 		//加密失败，直接上传
-	 		encFilePath = info.newPath;
-	 	}
-	 	Util.encodeFile(path.join(config.target,info.thumb),path.join(config.target,encThumbPath),function(err2,value2){
-	 		if(err2){
-	 			encThumbPath = info.thumb;
-	 		}
-	 		superagent
-			 .post(config.upload)
-			 //attach file
-			 .attach('images',path.join(config.target,info.newPath))
-			 .attach('images',path.join(config.target,info.thumb))
-			 .end(function(err,res){
-			 	if(err){
-			 		Util.log('['+fileName+']调用上传接口失败'+err.toString());
-			 		callback(err);
-			 	}else{
-			 		var txt = res.text;//获得返回的数据，一般为json格式
-			 		var resObj = JSON.parse(txt);
-			 		data.filePath = Util.encodeStr(resObj.filePath);
-			 		data.thumb = Util.encodeStr(resObj.thumb);
-					Util.log('['+fileName+']调用接口发送数据:'+JSON.stringify(data));
-			 		superagent
-			 		.post(config.api)
-			 		.send(data)
-			 		.end(function(err2,res2){
-			 			if(err2){
-					 		Util.log('['+fileName+']调用接口失败'+err2.toString());
-					 		callback(err2);
-					 	}else{
-					 		// var txt = res.text;
-					 		Util.log('['+fileName+']调用接口成功');
-					 		//删除源文件
-					 		if(fs.existsSync(info.filePath)){
-					 			fs.unlinkSync(info.filePath);
-					 		}
-					 		if(fs.existsSync(path.join(config.target,info.newPath))){
-					 			fs.unlinkSync(path.join(config.target,info.newPath));
-					 		}
-					 		if(fs.existsSync(path.join(config.target,info.thumb))){
-					 			fs.unlinkSync(path.join(config.target,info.thumb));
-					 		}
-					 		if(fs.existsSync(path.join(config.target,encFilePath))){
-					 			fs.unlinkSync(path.join(config.target,encFilePath));
-					 		}
-					 		if(fs.existsSync(path.join(config.target,encThumbPath))){
-					 			fs.unlinkSync(path.join(config.target,encThumbPath));
-					 		}
-					 		Util.log('['+fileName+']删除源文件成功'+info.filePath);
-					 		callback(null);
-					 	}
-			 		});
-			 	}
-			 });
-	 	});
-	 });
+	 try{
+	 	Util.log('['+fileName+']加密原文件，加密后路径:'+encFilePath);
+	 	Util.encodeFileSync(path.join(config.target,info.newPath),path.join(config.target,encFilePath));
+	 	Util.log('['+fileName+']加密缩略图,加密后路径:'+encThumbPath);
+	 	Util.encodeFileSync(path.join(config.target,info.thumb),path.join(config.target,encThumbPath));
+	 }catch(e){
+	 	encFilePath = info.newPath;
+	 	encThumbPath = info.thumb;
+	 }
+	 superagent
+		 .post(config.upload)
+		 //attach file
+		 .attach('images',path.join(config.target,encFilePath))
+		 .attach('images',path.join(config.target,encThumbPath))
+		 .end(function(err,res){
+		 	if(err){
+		 		Util.log('['+fileName+']调用上传接口失败'+err.toString());
+		 		callback(err);
+		 	}else{
+		 		var txt = res.text;//获得返回的数据，一般为json格式
+		 		var resObj = JSON.parse(txt);
+		 		data.filePath = Util.encodeStr(resObj.filePath);
+		 		data.thumb = Util.encodeStr(resObj.thumb);
+				Util.log('['+fileName+']调用接口发送数据:'+JSON.stringify(data));
+		 		superagent
+		 		.post(config.api)
+		 		.send(data)
+		 		.end(function(err2,res2){
+		 			if(err2){
+				 		Util.log('['+fileName+']调用接口失败'+err2.toString());
+				 		callback(err2);
+				 	}else{
+				 		// var txt = res.text;
+				 		Util.log('['+fileName+']调用接口成功');
+				 		//删除源文件
+				 		if(fs.existsSync(info.filePath)){
+				 			fs.unlinkSync(info.filePath);
+				 		}
+				 		if(fs.existsSync(path.join(config.target,info.newPath))){
+				 			Util.log('['+fileName+']删除压缩后文件:'+info.newPath);
+				 			fs.unlinkSync(path.join(config.target,info.newPath));
+				 		}
+				 		if(fs.existsSync(path.join(config.target,info.thumb))){
+				 			Util.log('['+fileName+']删除缩略图文件:'+info.thumb);
+				 			fs.unlinkSync(path.join(config.target,info.thumb));
+				 		}
+				 		if(fs.existsSync(path.join(config.target,encFilePath))){
+				 			Util.log('['+fileName+']删除加密后文件:'+encFilePath);
+				 			fs.unlinkSync(path.join(config.target,encFilePath));
+				 		}
+				 		if(fs.existsSync(path.join(config.target,encThumbPath))){
+				 			Util.log('['+fileName+']删除加密后缩略图文件:'+encThumbPath);
+				 			fs.unlinkSync(path.join(config.target,encThumbPath));
+				 		}
+				 		Util.log('['+fileName+']删除源文件成功'+info.filePath);
+				 		callback(null);
+				 	}
+		 		});
+		 	}
+		 });
+
+	 // Util.encodeFile(path.join(config.target,info.newPath),path.join(config.target,encFilePath),function(err,value){
+	 // 	if(err){
+	 // 		//加密失败，直接上传
+	 // 		encFilePath = info.newPath;
+	 // 	}
+	 // 	Util.log('['+fileName+']加密原文件，加密后路径:'+encFilePath);
+	 // 	Util.encodeFile(path.join(config.target,info.thumb),path.join(config.target,encThumbPath),function(err2,value2){
+	 // 		if(err2){
+	 // 			encThumbPath = info.thumb;
+	 // 		}
+	 // 		Util.log('['+fileName+']加密缩略图,加密后路径:'+encThumbPath);
+	 		
+	 // 	});
+	 // });
 	 
 }
 //旋转
